@@ -13,6 +13,7 @@ export default function Profile() {
   const [babyName, setBabyName] = useState(user?.babyName || '')
   const [babyDob, setBabyDob]   = useState(user?.babyDob || '')
   const [babyPhoto, setBabyPhoto] = useState(user?.babyPhoto || '')
+  const [avatarFile, setAvatarFile] = useState(null)
   const [saved, setSaved]       = useState(false)
   const [photoHover, setPhotoHover] = useState(false)
   const photoInputRef = useRef()
@@ -28,7 +29,7 @@ export default function Profile() {
   }, [])
 
   function handleSave() {
-    updateProfile({ name, babyName, babyDob, babyPhoto })
+    updateProfile({ name, babyName, babyDob, ...(avatarFile ? { avatarFile } : {}) })
     setSaved(true)
     const btn = pageRef.current?.querySelector('.save-profile-btn')
     if (btn) gsap.timeline().to(btn, { scale: 0.96, duration: 0.1 }).to(btn, { scale: 1, duration: 0.2, ease: 'back.out(3)' })
@@ -38,19 +39,16 @@ export default function Profile() {
   function handlePhotoChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    setAvatarFile(file)
     const reader = new FileReader()
-    reader.onload = ev => {
-      const dataUrl = ev.target.result
-      setBabyPhoto(dataUrl)
-      // Save immediately so sidebar + header update right away
-      updateProfile({ name, babyName, babyDob, babyPhoto: dataUrl })
-    }
+    reader.onload = ev => setBabyPhoto(ev.target.result)
     reader.readAsDataURL(file)
   }
 
   function removePhoto() {
     setBabyPhoto('')
-    updateProfile({ name, babyName, babyDob, babyPhoto: '' })
+    setAvatarFile(null)
+    updateProfile({ name, babyName, babyDob, avatarFile: null })
   }
 
   const initials   = (name || user?.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)

@@ -10,30 +10,32 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Restore session from PocketBase's built-in auth store
     if (pb.authStore.isValid) {
-      const model = pb.authStore.record
-      setUser(toUser(model))
+      setUser(toUser(pb.authStore.record))
     }
     setLoading(false)
 
-    // Keep user state in sync if token expires
     const unsub = pb.authStore.onChange((token, model) => {
       setUser(model ? toUser(model) : null)
     })
     return () => unsub()
   }, [])
 
+  function avatarUrl(model) {
+    if (!model?.avatar) return ''
+    return pb.files.getURL(model, model.avatar)
+  }
+
   function toUser(model) {
     const username = model.name || model.email?.split('@')[0] || ''
     return {
-      id:       model.id,
+      id:        model.id,
       username,
-      name:     username,
-      babyName: model.babyName || '',
-      babyDob:  model.babyDob  || '',
-      babyPhoto: localStorage.getItem(`babyPhoto_${model.id}`) || '',
-      isAdmin:  ADMIN_USERNAMES.includes(username.toLowerCase()),
+      name:      username,
+      babyName:  model.babyName || '',
+      babyDob:   model.babyDob  || '',
+      babyPhoto: avatarUrl(model),
+      isAdmin:   ADMIN_USERNAMES.includes(username.toLowerCase()),
     }
   }
 
@@ -63,7 +65,7 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('Register error:', e, e?.response)
       const msg = e?.response?.data
-      if (msg?.email) return { success: false, error: 'That username is already taken.' }
+      if (msg?.email)    return { success: false, error: 'That username is already taken.' }
       if (msg?.password) return { success: false, error: 'Password must be at least 8 characters.' }
       return { success: false, error: e?.message || 'Something went wrong.' }
     }
@@ -76,16 +78,19 @@ export function AuthProvider({ children }) {
 
   async function updateProfile(updates) {
     try {
-      const { babyPhoto, ...pbUpdates } = updates
-      if (babyPhoto !== undefined) {
-        if (babyPhoto) localStorage.setItem(`babyPhoto_${user.id}`, babyPhoto)
-        else localStorage.removeItem(`babyPhoto_${user.id}`)
-      }
-      const record = await pb.collection('users').update(user.id, pbUpdates)
+      const { avatarFile, ...fields } = updates
+
+      const formData = new FormData()
+      Object.entries(fields).forEach(([k, v]) => formData.append(k, v ?? ''))
+      if (avatarFile) formData.append('avatar', avatarFile)
+      if (avatarFile === null) formData.append('avatar', '') // remove
+
+      const record = await pb.collection('users').update(user.id, formData)
       await pb.collection('users').authRefresh()
-      setUser({ ...toUser(record), babyPhoto: babyPhoto ?? user.babyPhoto ?? '' })
+      setUser(toUser(record))
       return true
-    } catch (_) {
+    } catch (e) {
+      console.error('updateProfile error:', e)
       return false
     }
   }
