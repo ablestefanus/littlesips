@@ -37,12 +37,13 @@ function AddReadingModal({ onSave, onClose }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 100,
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
-        padding: '24px 20px 40px', boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
+        padding: '24px 20px 40px', boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
+        maxHeight: '85vh', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>Add Bilirubin Reading</h3>
@@ -119,12 +120,13 @@ function AddAppointmentModal({ onSave, onClose, editing }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 100,
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
-        padding: '24px 20px 40px', boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
+        padding: '24px 20px 40px', boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
+        maxHeight: '85vh', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>{editing ? 'Edit Appointment' : 'Add Appointment'}</h3>
