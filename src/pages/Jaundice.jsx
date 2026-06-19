@@ -3,14 +3,14 @@ import gsap from 'gsap'
 import { useAuth } from '../context/AuthContext.jsx'
 import pb from '../lib/pb.js'
 
-// ── Risk zones ────────────────────────────────────────────────
+// ── Risk zones (SB in µmol/L) ─────────────────────────────────
 function getRisk(level) {
   if (!level && level !== 0) return null
-  if (level < 5)  return { label: 'Normal',   color: '#7DD9B8', bg: 'rgba(125,217,184,0.12)', border: 'rgba(125,217,184,0.4)' }
-  if (level < 10) return { label: 'Mild',     color: '#FFD700', bg: 'rgba(255,215,0,0.12)',   border: 'rgba(255,215,0,0.4)'   }
-  if (level < 15) return { label: 'Moderate', color: '#FFA500', bg: 'rgba(255,165,0,0.12)',   border: 'rgba(255,165,0,0.4)'   }
-  if (level < 20) return { label: 'High',     color: '#FF6B35', bg: 'rgba(255,107,53,0.12)',  border: 'rgba(255,107,53,0.4)'  }
-  return           { label: 'Critical',        color: '#E53E3E', bg: 'rgba(229,62,62,0.12)',   border: 'rgba(229,62,62,0.4)'   }
+  if (level < 85)  return { label: 'Normal',   color: '#7DD9B8', bg: 'rgba(125,217,184,0.12)', border: 'rgba(125,217,184,0.4)' }
+  if (level < 170) return { label: 'Mild',     color: '#FFD700', bg: 'rgba(255,215,0,0.12)',   border: 'rgba(255,215,0,0.4)'   }
+  if (level < 255) return { label: 'Moderate', color: '#FFA500', bg: 'rgba(255,165,0,0.12)',   border: 'rgba(255,165,0,0.4)'   }
+  if (level < 340) return { label: 'High',     color: '#FF6B35', bg: 'rgba(255,107,53,0.12)',  border: 'rgba(255,107,53,0.4)'  }
+  return            { label: 'Critical',        color: '#E53E3E', bg: 'rgba(229,62,62,0.12)',   border: 'rgba(229,62,62,0.4)'   }
 }
 
 const METHODS = ['Blood test', 'Transcutaneous meter', 'Visual assessment']
@@ -50,12 +50,12 @@ function AddReadingModal({ onSave, onClose }) {
         </div>
 
         <div className="field">
-          <label>Bilirubin level (mg/dL)</label>
-          <input type="number" step="0.1" min="0" max="40" placeholder="e.g. 8.5"
+          <label>SB level (µmol/L)</label>
+          <input type="number" step="1" min="0" max="700" placeholder="e.g. 145"
             value={level} onChange={e => setLevel(e.target.value)} autoFocus />
           {risk && (
             <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: risk.bg, border: `1px solid ${risk.border}`, fontSize: 13, fontWeight: 700, color: risk.color }}>
-              {risk.label} — {parseFloat(level)} mg/dL
+              {risk.label} — SB {parseFloat(level)} µmol/L
             </div>
           )}
         </div>
@@ -218,7 +218,7 @@ function LevelsTab({ userId }) {
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 48, fontWeight: 700, color: latestRisk?.color || 'var(--text)', lineHeight: 1 }}>
             {latest.level}
           </div>
-          <div style={{ fontSize: 14, color: 'var(--text-mid)', marginTop: 2 }}>mg/dL</div>
+          <div style={{ fontSize: 14, color: 'var(--text-mid)', marginTop: 2 }}>µmol/L</div>
           <div style={{
             display: 'inline-block', marginTop: 10, padding: '4px 14px', borderRadius: 99,
             background: latestRisk?.color || 'var(--primary)', color: 'white',
@@ -233,15 +233,15 @@ function LevelsTab({ userId }) {
       {/* Risk guide */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { label: 'Normal', range: '< 5', color: '#7DD9B8' },
-          { label: 'Mild',   range: '5–10', color: '#FFD700' },
-          { label: 'Moderate', range: '10–15', color: '#FFA500' },
-          { label: 'High',   range: '15–20', color: '#FF6B35' },
-          { label: 'Critical', range: '> 20', color: '#E53E3E' },
+          { label: 'Normal',   range: '< 85',    color: '#7DD9B8' },
+          { label: 'Mild',     range: '85–170',  color: '#FFD700' },
+          { label: 'Moderate', range: '170–255', color: '#FFA500' },
+          { label: 'High',     range: '255–340', color: '#FF6B35' },
+          { label: 'Critical', range: '> 340',   color: '#E53E3E' },
         ].map(z => (
           <div key={z.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-mid)', background: 'var(--bg-alt)', padding: '4px 8px', borderRadius: 99 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: z.color, flexShrink: 0 }} />
-            <span style={{ fontWeight: 700 }}>{z.label}</span> {z.range} mg/dL
+            <span style={{ fontWeight: 700 }}>{z.label}</span> {z.range} µmol/L
           </div>
         ))}
       </div>
@@ -283,7 +283,7 @@ function LevelsTab({ userId }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{r.level} mg/dL</span>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{r.level} µmol/L</span>
                     <span style={{
                       fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 99,
                       background: risk?.bg, color: risk?.color, border: `1px solid ${risk?.border}`,
