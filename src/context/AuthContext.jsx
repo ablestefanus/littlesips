@@ -3,7 +3,7 @@ import pb from '../lib/pb.js'
 
 const AuthContext = createContext()
 
-const ADMIN_USERNAMES = ['stefanus']
+const ADMIN_USERNAMES = (import.meta.env.VITE_ADMIN_USERNAMES || 'stefanus').split(',')
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
