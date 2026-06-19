@@ -19,6 +19,7 @@ const APPT_TYPES = ['Jaundice checkup', 'Blood test', 'Phototherapy check', 'Fol
 // ── Add Reading Modal ─────────────────────────────────────────
 function AddReadingModal({ onSave, onClose }) {
   const [level,     setLevel]     = useState('')
+  const [weight,    setWeight]    = useState('')
   const [method,    setMethod]    = useState(METHODS[0])
   const [date,      setDate]      = useState(new Date().toISOString().slice(0, 10))
   const [time,      setTime]      = useState(new Date().toTimeString().slice(0, 5))
@@ -30,7 +31,7 @@ function AddReadingModal({ onSave, onClose }) {
   async function handleSave() {
     if (!level) return
     setSaving(true)
-    await onSave({ level: parseFloat(level), method, date, time, phototherapy: photo, notes })
+    await onSave({ level: parseFloat(level), weight: weight ? parseFloat(weight) : null, method, date, time, phototherapy: photo, notes })
     setSaving(false)
     onClose()
   }
@@ -59,6 +60,12 @@ function AddReadingModal({ onSave, onClose }) {
               {risk.label} — SB {parseFloat(level)} µmol/L
             </div>
           )}
+        </div>
+
+        <div className="field">
+          <label>Baby's weight (kg) <span style={{ fontWeight: 400, color: 'var(--text-light)' }}>(optional)</span></label>
+          <input type="number" step="0.01" min="0" max="20" placeholder="e.g. 3.2"
+            value={weight} onChange={e => setWeight(e.target.value)} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -298,6 +305,7 @@ function LevelsTab({ userId }) {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-mid)', marginTop: 2 }}>
                     {r.date}{r.time ? ` · ${r.time}` : ''} · {r.method}
+                    {r.weight ? ` · ⚖️ ${r.weight} kg` : ''}
                     {r.phototherapy ? ' · 💡 Phototherapy' : ''}
                   </div>
                   {r.notes && <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 3 }}>{r.notes}</div>}
