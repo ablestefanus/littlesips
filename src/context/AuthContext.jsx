@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
       if (avatarFile === null) formData.append('avatar', '') // remove
 
       const record = await pb.collection('users').update(user.id, formData)
-      await pb.collection('users').authRefresh()
+      pb.authStore.save(pb.authStore.token, record)
       setUser(toUser(record))
       return true
     } catch (e) {
