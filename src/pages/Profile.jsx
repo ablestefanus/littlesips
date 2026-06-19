@@ -14,7 +14,8 @@ export default function Profile() {
   const [babyDob, setBabyDob]   = useState(user?.babyDob || '')
   const [babyPhoto, setBabyPhoto] = useState(user?.babyPhoto || '')
   const [avatarFile, setAvatarFile] = useState(null)
-  const [saved, setSaved]       = useState(false)
+  const [saved, setSaved]         = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [photoHover, setPhotoHover] = useState(false)
   const photoInputRef = useRef()
   const pageRef = useRef()
@@ -38,11 +39,13 @@ export default function Profile() {
     return () => ctx.revert()
   }, [])
 
-  function handleSave() {
-    updateProfile({ name, babyName, babyDob, ...(avatarFile ? { avatarFile } : {}) })
-    setSaved(true)
+  async function handleSave() {
+    if (avatarFile) setUploading(true)
     const btn = pageRef.current?.querySelector('.save-profile-btn')
     if (btn) gsap.timeline().to(btn, { scale: 0.96, duration: 0.1 }).to(btn, { scale: 1, duration: 0.2, ease: 'back.out(3)' })
+    await updateProfile({ name, babyName, babyDob, ...(avatarFile ? { avatarFile } : {}) })
+    setUploading(false)
+    setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
@@ -96,17 +99,31 @@ export default function Profile() {
                 fontSize: 32, fontWeight: 900, color: 'white',
               }}>{initials}</div>
             )}
-            {/* Hover overlay */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(0,0,0,0.45)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              opacity: photoHover ? 1 : 0, transition: 'opacity 0.18s',
-              color: 'white', gap: 2,
-            }}>
-              <span style={{ fontSize: 20 }}>📷</span>
-              <span style={{ fontSize: 10, fontWeight: 800 }}>{babyPhoto ? 'Change' : 'Add photo'}</span>
-            </div>
+            {/* Upload progress overlay */}
+            {uploading ? (
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'rgba(0,0,0,0.55)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="40" height="40" viewBox="0 0 40 40" style={{ animation: 'spin 0.8s linear infinite' }}>
+                  <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="3.5" />
+                  <circle cx="20" cy="20" r="16" fill="none" stroke="white" strokeWidth="3.5"
+                    strokeDasharray="60 40" strokeLinecap="round" />
+                </svg>
+              </div>
+            ) : (
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'rgba(0,0,0,0.45)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                opacity: photoHover ? 1 : 0, transition: 'opacity 0.18s',
+                color: 'white', gap: 2,
+              }}>
+                <span style={{ fontSize: 20 }}>📷</span>
+                <span style={{ fontSize: 10, fontWeight: 800 }}>{babyPhoto ? 'Change' : 'Add photo'}</span>
+              </div>
+            )}
           </div>
 
           {/* Remove badge */}
