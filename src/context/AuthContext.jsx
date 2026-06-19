@@ -32,6 +32,7 @@ export function AuthProvider({ children }) {
       name:     username,
       babyName: model.babyName || '',
       babyDob:  model.babyDob  || '',
+      babyPhoto: localStorage.getItem(`babyPhoto_${model.id}`) || '',
       isAdmin:  ADMIN_USERNAMES.includes(username.toLowerCase()),
     }
   }
@@ -75,8 +76,14 @@ export function AuthProvider({ children }) {
 
   async function updateProfile(updates) {
     try {
-      const record = await pb.collection('users').update(user.id, updates)
-      setUser(toUser(record))
+      const { babyPhoto, ...pbUpdates } = updates
+      if (babyPhoto !== undefined) {
+        if (babyPhoto) localStorage.setItem(`babyPhoto_${user.id}`, babyPhoto)
+        else localStorage.removeItem(`babyPhoto_${user.id}`)
+      }
+      const record = await pb.collection('users').update(user.id, pbUpdates)
+      await pb.collection('users').authRefresh()
+      setUser({ ...toUser(record), babyPhoto: babyPhoto ?? user.babyPhoto ?? '' })
       return true
     } catch (_) {
       return false
