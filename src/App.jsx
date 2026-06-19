@@ -8,6 +8,7 @@ import Menu from './pages/Menu.jsx'
 import Stats from './pages/Stats.jsx'
 import Profile from './pages/Profile.jsx'
 import Admin from './pages/Admin.jsx'
+import Jaundice from './pages/Jaundice.jsx'
 import Layout from './components/Layout.jsx'
 import Toast from './components/Toast.jsx'
 
@@ -43,6 +44,7 @@ function AppInner() {
     stats:     <Stats />,
     profile:   <Profile />,
     admin:     <Admin />,
+    jaundice:  <Jaundice />,
   }
 
   return (

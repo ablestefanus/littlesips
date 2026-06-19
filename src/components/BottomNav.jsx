@@ -7,8 +7,8 @@ const BASE_ITEMS = [
   { id: 'profile',   icon: '🍼', label: 'Profile' },
   { id: 'dashboard', icon: '🏠', label: 'Home' },
   { id: 'menu',      icon: '🗓️', label: 'Menu' },
+  { id: 'jaundice',  icon: '🟡', label: 'Jaundice' },
   { id: 'history',   icon: '📋', label: 'History' },
-  { id: 'stats',     icon: '📊', label: 'Stats' },
 ]
 
 const ADMIN_ITEM = { id: 'admin', icon: '⚙️', label: 'Admin' }
