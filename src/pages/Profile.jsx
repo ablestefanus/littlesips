@@ -20,6 +20,16 @@ export default function Profile() {
   const pageRef = useRef()
 
   useEffect(() => {
+    if (user) {
+      setName(user.name || '')
+      setBabyName(user.babyName || '')
+      setBabyDob(user.babyDob || '')
+      setBabyPhoto(user.babyPhoto || '')
+      setAvatarFile(null)
+    }
+  }, [user?.babyName, user?.babyDob, user?.babyPhoto])
+
+  useEffect(() => {
     const ctx = gsap.context(() => {
       const els = Array.from(pageRef.current?.children || [])
       gsap.set(els, { opacity: 1, y: 0 })
