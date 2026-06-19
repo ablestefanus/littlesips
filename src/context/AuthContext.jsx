@@ -1,107 +1,88 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { uid } from '../utils.js'
+import pb from '../lib/pb.js'
 
 const AuthContext = createContext()
 
 const ADMIN_USERNAMES = ['stefanus']
 
-function isAdmin(username) {
-  return ADMIN_USERNAMES.includes((username || '').toLowerCase())
-}
-
-function stripPassword({ password, ...safe }) {
-  return { ...safe, isAdmin: isAdmin(safe.username) }
-}
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('ls_currentUser')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        setUser({ ...parsed, isAdmin: isAdmin(parsed.username) })
-      }
-    } catch (_) {}
+    // Restore session from PocketBase's built-in auth store
+    if (pb.authStore.isValid) {
+      const model = pb.authStore.record
+      setUser(toUser(model))
+    }
     setLoading(false)
+
+    // Keep user state in sync if token expires
+    const unsub = pb.authStore.onChange((token, model) => {
+      setUser(model ? toUser(model) : null)
+    })
+    return () => unsub()
   }, [])
 
-  function login(username, password) {
-    try {
-      const users = JSON.parse(localStorage.getItem('ls_users') || '[]')
-      const found = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password)
-      if (!found) return { success: false, error: 'Wrong username or password.' }
-      const safe = stripPassword(found)
-      setUser(safe)
-      localStorage.setItem('ls_currentUser', JSON.stringify(safe))
-      return { success: true }
-    } catch (_) {
-      return { success: false, error: 'Something went wrong.' }
+  function toUser(model) {
+    const username = model.name || model.email?.split('@')[0] || ''
+    return {
+      id:       model.id,
+      username,
+      name:     username,
+      babyName: model.babyName || '',
+      babyDob:  model.babyDob  || '',
+      isAdmin:  ADMIN_USERNAMES.includes(username.toLowerCase()),
     }
   }
 
-  function register(username, password) {
+  function toEmail(username) {
+    return `${username.toLowerCase()}@littlesips.be`
+  }
+
+  async function login(username, password) {
     try {
-      const users = JSON.parse(localStorage.getItem('ls_users') || '[]')
-      if (users.find(u => u.username.toLowerCase() === username.toLowerCase()))
-        return { success: false, error: 'That username is already taken.' }
-      const newUser = { id: uid(), username, name: username, password, createdAt: new Date().toISOString() }
-      localStorage.setItem('ls_users', JSON.stringify([...users, newUser]))
-      const safe = stripPassword(newUser)
-      setUser(safe)
-      localStorage.setItem('ls_currentUser', JSON.stringify(safe))
+      const auth = await pb.collection('users').authWithPassword(toEmail(username), password)
+      setUser(toUser(auth.record))
       return { success: true }
-    } catch (_) {
+    } catch (e) {
+      return { success: false, error: 'Wrong username or password.' }
+    }
+  }
+
+  async function register(username, password) {
+    try {
+      await pb.collection('users').create({
+        email: toEmail(username),
+        name: username,
+        password,
+        passwordConfirm: password,
+      })
+      return await login(username, password)
+    } catch (e) {
+      const msg = e?.response?.data
+      if (msg?.email) return { success: false, error: 'That username is already taken.' }
       return { success: false, error: 'Something went wrong.' }
     }
   }
 
   function logout() {
+    pb.authStore.clear()
     setUser(null)
-    localStorage.removeItem('ls_currentUser')
   }
 
-  function updateProfile(updates) {
+  async function updateProfile(updates) {
     try {
-      const users = JSON.parse(localStorage.getItem('ls_users') || '[]')
-      const idx = users.findIndex(u => u.id === user.id)
-      if (idx === -1) return false
-      users[idx] = { ...users[idx], ...updates }
-      localStorage.setItem('ls_users', JSON.stringify(users))
-      const safe = stripPassword(users[idx])
-      setUser(safe)
-      localStorage.setItem('ls_currentUser', JSON.stringify(safe))
+      const record = await pb.collection('users').update(user.id, updates)
+      setUser(toUser(record))
       return true
     } catch (_) {
       return false
     }
   }
 
-  function getAllUsers() {
-    if (!user?.isAdmin) return []
-    try {
-      return JSON.parse(localStorage.getItem('ls_users') || '[]').map(u => {
-        const { password, ...safe } = u
-        return { ...safe, isAdmin: isAdmin(safe.username) }
-      })
-    } catch (_) {
-      return []
-    }
-  }
-
-  function getAllLogs(userId) {
-    if (!user?.isAdmin) return []
-    try {
-      return JSON.parse(localStorage.getItem(`ls_logs_${userId}`) || '[]')
-    } catch (_) {
-      return []
-    }
-  }
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, getAllUsers, getAllLogs }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

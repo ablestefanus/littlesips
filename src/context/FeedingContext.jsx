@@ -1,69 +1,55 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext.jsx'
-import { uid, toDateKey, SLOT_KEYS } from '../utils.js'
+import { toDateKey, SLOT_KEYS } from '../utils.js'
+import pb from '../lib/pb.js'
 
 const FeedingContext = createContext()
 
 export function FeedingProvider({ children }) {
   const { user } = useAuth()
-  const [plans, setPlans]   = useState([])  // meal plans (what's PLANNED per date+slot)
-  const [logs, setLogs]     = useState([])  // actual meal logs (what was eaten)
-  const [foodTracker, setFoodTracker] = useState({})  // food introduction tracker
-  const [foodCustom, setFoodCustom]   = useState({})  // per-month custom food additions/removals
+  const [plans,       setPlans]       = useState([])
+  const [logs,        setLogs]        = useState([])
+  const [foodTracker, setFoodTracker] = useState({})
+  const [foodCustom,  setFoodCustom]  = useState({})
 
-  const planKey       = user ? `ls_plans_${user.id}`       : null
-  const logKey        = user ? `ls_logs_${user.id}`        : null
-  const foodKey       = user ? `ls_foodtracker_${user.id}` : null
-  const foodCustomKey = user ? `ls_foodcustom_${user.id}`  : null
-
+  // Load all data when user logs in
   useEffect(() => {
-    if (!planKey) { setPlans([]); setLogs([]); setFoodTracker({}); setFoodCustom({}); return }
+    if (!user) {
+      setPlans([]); setLogs([]); setFoodTracker({}); setFoodCustom({})
+      return
+    }
+    loadAll()
+  }, [user?.id])
+
+  async function loadAll() {
     try {
-      setPlans(JSON.parse(localStorage.getItem(planKey) || '[]'))
-      setLogs(JSON.parse(localStorage.getItem(logKey)  || '[]'))
-      setFoodTracker(JSON.parse(localStorage.getItem(foodKey) || '{}'))
-      setFoodCustom(JSON.parse(localStorage.getItem(foodCustomKey) || '{}'))
-    } catch (_) { setPlans([]); setLogs([]); setFoodTracker({}); setFoodCustom({}) }
-  }, [planKey, logKey, foodKey, foodCustomKey])
+      const [plansRes, logsRes, ftRes, fcRes] = await Promise.all([
+        pb.collection('plans').getFullList({ filter: `user="${user.id}"` }),
+        pb.collection('logs').getFullList({ filter: `user="${user.id}"`, sort: '-loggedAt' }),
+        pb.collection('foodtracker').getFullList({ filter: `user="${user.id}"` }),
+        pb.collection('foodcustom').getFullList({ filter: `user="${user.id}"` }),
+      ])
+      setPlans(plansRes.map(normPlan))
+      setLogs(logsRes.map(normLog))
+      setFoodTracker(ftRes[0]?.data || {})
+      setFoodCustom(fcRes[0]?.data || {})
+    } catch (_) {}
+  }
 
-  const savePlans = useCallback((list) => {
-    setPlans(list)
-    if (planKey) localStorage.setItem(planKey, JSON.stringify(list))
-  }, [planKey])
-
-  const saveLogs = useCallback((list) => {
-    setLogs(list)
-    if (logKey) localStorage.setItem(logKey, JSON.stringify(list))
-  }, [logKey])
-
-  const saveFoodTracker = useCallback((map) => {
-    setFoodTracker(map)
-    if (foodKey) localStorage.setItem(foodKey, JSON.stringify(map))
-  }, [foodKey])
-
-  const saveFoodCustom = useCallback((map) => {
-    setFoodCustom(map)
-    if (foodCustomKey) localStorage.setItem(foodCustomKey, JSON.stringify(map))
-  }, [foodCustomKey])
-
-  // ── Plans ──────────────────────────────────────────────────
-  function setPlanSlot(date, slot, foods) {
-    const dateKey = toDateKey(date)
-    const existing = plans.find(p => p.date === dateKey && p.slot === slot)
-    if (existing) {
-      savePlans(plans.map(p =>
-        p.date === dateKey && p.slot === slot ? { ...p, foods } : p
-      ))
-    } else {
-      savePlans([...plans, { id: uid(), userId: user.id, date: dateKey, slot, foods }])
+  // Normalize PocketBase records to the shape the rest of the app expects
+  function normPlan(r) {
+    return { id: r.id, userId: r.user, date: r.date, slot: r.slot, foods: r.foods || [] }
+  }
+  function normLog(r) {
+    return {
+      id: r.id, userId: r.user, date: r.date, slot: r.slot,
+      foodsEaten: r.foodsEaten || [], plannedFoods: r.plannedFoods || [],
+      reaction: r.reaction || null, foodReactions: r.foodReactions || {},
+      notes: r.notes || '', loggedAt: r.loggedAt || '',
     }
   }
 
-  function getPlanSlot(date, slot) {
-    const dateKey = toDateKey(date)
-    return plans.find(p => p.date === dateKey && p.slot === slot)?.foods || []
-  }
-
+  // ── Plans ─────────────────────────────────────────────────────
   function getPlansForDate(date) {
     const dateKey = toDateKey(date)
     const result = {}
@@ -72,51 +58,56 @@ export function FeedingProvider({ children }) {
     return result
   }
 
-  function deletePlanSlot(date, slot) {
+  async function setPlanSlot(date, slot, foods) {
     const dateKey = toDateKey(date)
-    savePlans(plans.filter(p => !(p.date === dateKey && p.slot === slot)))
+    const existing = plans.find(p => p.date === dateKey && p.slot === slot)
+    if (existing) {
+      const updated = await pb.collection('plans').update(existing.id, { foods })
+      setPlans(prev => prev.map(p => p.id === existing.id ? normPlan(updated) : p))
+    } else {
+      const created = await pb.collection('plans').create({ user: user.id, date: dateKey, slot, foods })
+      setPlans(prev => [...prev, normPlan(created)])
+    }
   }
 
-  // Import a single day from a template
-  function importTemplateDay(date, templateDay) {
-    importTemplateDays([{ date, dayData: templateDay }])
+  async function deletePlanSlot(date, slot) {
+    const dateKey = toDateKey(date)
+    const existing = plans.find(p => p.date === dateKey && p.slot === slot)
+    if (existing) {
+      await pb.collection('plans').delete(existing.id)
+      setPlans(prev => prev.filter(p => p.id !== existing.id))
+    }
   }
 
-  // Import multiple days in one save — avoids stale-closure overwrite bug
-  function importTemplateDays(items) {
+  async function importTemplateDays(items) {
     const dateKeys = items.map(({ date }) => toDateKey(date))
-    const filtered  = plans.filter(p => !dateKeys.includes(p.date))
-    const newPlans  = []
-    items.forEach(({ date, dayData }) => {
+    // Delete existing plans for these dates
+    const toDelete = plans.filter(p => dateKeys.includes(p.date))
+    await Promise.all(toDelete.map(p => pb.collection('plans').delete(p.id)))
+
+    // Create new plans
+    const created = []
+    await Promise.all(items.map(async ({ date, dayData }) => {
       const dateKey = toDateKey(date)
-      SLOT_KEYS.forEach(slot => {
+      await Promise.all(SLOT_KEYS.map(async slot => {
         const foods = dayData[slot] || []
         if (foods.length > 0) {
-          newPlans.push({ id: uid(), userId: user.id, date: dateKey, slot, foods })
+          const r = await pb.collection('plans').create({ user: user.id, date: dateKey, slot, foods })
+          created.push(normPlan(r))
         }
-      })
-    })
-    savePlans([...filtered, ...newPlans])
+      }))
+    }))
+    setPlans(prev => [...prev.filter(p => !dateKeys.includes(p.date)), ...created])
   }
 
-  // ── Logs ───────────────────────────────────────────────────
-  function logMeal({ date, slot, foodsEaten, plannedFoods, reaction, foodReactions, notes }) {
+  async function importTemplateDay(date, templateDay) {
+    await importTemplateDays([{ date, dayData: templateDay }])
+  }
+
+  // ── Logs ──────────────────────────────────────────────────────
+  function getLogsForDate(date) {
     const dateKey = toDateKey(date)
-    const filtered = logs.filter(l => !(l.date === dateKey && l.slot === slot))
-    const entry = {
-      id: uid(),
-      userId: user.id,
-      date: dateKey,
-      slot,
-      foodsEaten: foodsEaten || [],
-      plannedFoods: plannedFoods || [],
-      reaction: reaction || null,
-      foodReactions: foodReactions || {},
-      notes: notes || '',
-      loggedAt: new Date().toISOString(),
-    }
-    saveLogs([entry, ...filtered])
-    return entry
+    return logs.filter(l => l.date === dateKey)
   }
 
   function getLogSlot(date, slot) {
@@ -124,13 +115,29 @@ export function FeedingProvider({ children }) {
     return logs.find(l => l.date === dateKey && l.slot === slot) || null
   }
 
-  function getLogsForDate(date) {
+  async function logMeal({ date, slot, foodsEaten, plannedFoods, reaction, foodReactions, notes }) {
     const dateKey = toDateKey(date)
-    return logs.filter(l => l.date === dateKey)
+    const existing = logs.find(l => l.date === dateKey && l.slot === slot)
+    const data = {
+      user: user.id, date: dateKey, slot,
+      foodsEaten: foodsEaten || [], plannedFoods: plannedFoods || [],
+      reaction: reaction || null, foodReactions: foodReactions || {},
+      notes: notes || '', loggedAt: new Date().toISOString(),
+    }
+    if (existing) {
+      const updated = await pb.collection('logs').update(existing.id, data)
+      setLogs(prev => prev.map(l => l.id === existing.id ? normLog(updated) : l))
+      return normLog(updated)
+    } else {
+      const created = await pb.collection('logs').create(data)
+      setLogs(prev => [normLog(created), ...prev])
+      return normLog(created)
+    }
   }
 
-  function deleteLog(id) {
-    saveLogs(logs.filter(l => l.id !== id))
+  async function deleteLog(id) {
+    await pb.collection('logs').delete(id)
+    setLogs(prev => prev.filter(l => l.id !== id))
   }
 
   function getMealsDoneToday() {
@@ -138,7 +145,6 @@ export function FeedingProvider({ children }) {
     return logs.filter(l => l.date === today && l.foodsEaten.length > 0)
   }
 
-  // All unique foods ever eaten (for autocomplete)
   function getAllFoods() {
     const set = new Set()
     logs.forEach(l => l.foodsEaten.forEach(f => set.add(f)))
@@ -146,41 +152,62 @@ export function FeedingProvider({ children }) {
     return [...set].sort()
   }
 
-  // ── Food Tracker ───────────────────────────────────────────
+  // ── Food Tracker ──────────────────────────────────────────────
   function getFoodEntry(food) {
     return foodTracker[food] ?? { tried: false, mpasiWeek: null, notes: '' }
   }
 
-  function setFoodEntry(food, patch) {
+  async function setFoodEntry(food, patch) {
     const updated = { ...foodTracker, [food]: { ...getFoodEntry(food), ...patch } }
-    saveFoodTracker(updated)
+    await saveFoodTracker(updated)
   }
 
-  function getAllFoodEntries() {
-    return foodTracker
+  async function saveFoodTracker(data) {
+    setFoodTracker(data)
+    try {
+      const existing = await pb.collection('foodtracker').getFirstListItem(`user="${user.id}"`).catch(() => null)
+      if (existing) {
+        await pb.collection('foodtracker').update(existing.id, { data })
+      } else {
+        await pb.collection('foodtracker').create({ user: user.id, data })
+      }
+    } catch (_) {}
   }
 
-  // ── Food Custom (add / remove per month+category) ──────────
-  // Shape: { [month]: { [category]: { added: string[], hidden: string[] } } }
+  function getAllFoodEntries() { return foodTracker }
+
+  // ── Food Custom ───────────────────────────────────────────────
   function getFoodCustom(month, category) {
     return foodCustom[month]?.[category] ?? { added: [], hidden: [] }
   }
 
-  function addCustomFood(month, category, food) {
+  async function saveFoodCustom(data) {
+    setFoodCustom(data)
+    try {
+      const existing = await pb.collection('foodcustom').getFirstListItem(`user="${user.id}"`).catch(() => null)
+      if (existing) {
+        await pb.collection('foodcustom').update(existing.id, { data })
+      } else {
+        await pb.collection('foodcustom').create({ user: user.id, data })
+      }
+    } catch (_) {}
+  }
+
+  async function addCustomFood(month, category, food) {
     const mc = getFoodCustom(month, category)
     if (mc.added.includes(food)) return
-    saveFoodCustom({
+    await saveFoodCustom({
       ...foodCustom,
       [month]: { ...foodCustom[month], [category]: { ...mc, added: [...mc.added, food] } },
     })
   }
 
-  function removeFood(month, category, food, isCustom) {
+  async function removeFood(month, category, food, isCustom) {
     const mc = getFoodCustom(month, category)
     const updated = isCustom
       ? { ...mc, added: mc.added.filter(f => f !== food) }
       : { ...mc, hidden: [...(mc.hidden || []), food] }
-    saveFoodCustom({
+    await saveFoodCustom({
       ...foodCustom,
       [month]: { ...foodCustom[month], [category]: updated },
     })
@@ -189,7 +216,7 @@ export function FeedingProvider({ children }) {
   return (
     <FeedingContext.Provider value={{
       plans, logs,
-      setPlanSlot, getPlanSlot, getPlansForDate, deletePlanSlot, importTemplateDay, importTemplateDays,
+      setPlanSlot, getPlansForDate, deletePlanSlot, importTemplateDay, importTemplateDays,
       logMeal, getLogSlot, getLogsForDate, deleteLog, getMealsDoneToday, getAllFoods,
       getFoodEntry, setFoodEntry, getAllFoodEntries,
       getFoodCustom, addCustomFood, removeFood,

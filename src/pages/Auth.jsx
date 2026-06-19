@@ -35,9 +35,9 @@ export default function Auth() {
 
     if (!username.trim()) { setError('Please enter a username.'); setLoading(false); return }
 
-    const result = tab === 'login'
+    const result = await (tab === 'login'
       ? login(username.trim(), pass)
-      : register(username.trim(), pass)
+      : register(username.trim(), pass))
 
     if (!result.success) {
       setError(result.error)
