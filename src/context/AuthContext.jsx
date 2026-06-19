@@ -60,9 +60,11 @@ export function AuthProvider({ children }) {
       })
       return await login(username, password)
     } catch (e) {
+      console.error('Register error:', e, e?.response)
       const msg = e?.response?.data
       if (msg?.email) return { success: false, error: 'That username is already taken.' }
-      return { success: false, error: 'Something went wrong.' }
+      if (msg?.password) return { success: false, error: 'Password must be at least 8 characters.' }
+      return { success: false, error: e?.message || 'Something went wrong.' }
     }
   }
 

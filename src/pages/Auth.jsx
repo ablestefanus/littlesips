@@ -126,7 +126,7 @@ export default function Auth() {
               onChange={e => setPass(e.target.value)}
               autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
               required
-              minLength={tab === 'register' ? 6 : undefined}
+              minLength={tab === 'register' ? 8 : undefined}
             />
           </div>
 
