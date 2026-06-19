@@ -183,6 +183,127 @@ function AddAppointmentModal({ onSave, onClose, editing }) {
   )
 }
 
+// ── Progress Chart ────────────────────────────────────────────
+function ProgressChart({ readings }) {
+  const sorted = [...readings]
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''))
+
+  if (sorted.length < 2) return null
+
+  const W = 340, H = 200
+  const PAD = { top: 24, right: 20, bottom: 36, left: 44 }
+  const chartW = W - PAD.left - PAD.right
+  const chartH = H - PAD.top - PAD.bottom
+
+  const maxVal = Math.max(...sorted.map(r => r.level), 340)
+  const yMax   = maxVal * 1.12
+
+  const zones = [
+    { from: 0,   to: 85,   color: 'rgba(125,217,184,0.18)' },
+    { from: 85,  to: 170,  color: 'rgba(255,215,0,0.15)'   },
+    { from: 170, to: 255,  color: 'rgba(255,165,0,0.15)'   },
+    { from: 255, to: 340,  color: 'rgba(255,107,53,0.15)'  },
+    { from: 340, to: yMax, color: 'rgba(229,62,62,0.15)'   },
+  ]
+
+  function toX(i) {
+    return PAD.left + (i / (sorted.length - 1)) * chartW
+  }
+  function toY(v) {
+    return PAD.top + chartH - (Math.min(v, yMax) / yMax) * chartH
+  }
+
+  const pts = sorted.map((r, i) => ({ x: toX(i), y: toY(r.level), r }))
+
+  // Smooth bezier path
+  function linePath() {
+    let d = `M ${pts[0].x},${pts[0].y}`
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i - 1].x + pts[i].x) / 2
+      d += ` C ${cpx},${pts[i - 1].y} ${cpx},${pts[i].y} ${pts[i].x},${pts[i].y}`
+    }
+    return d
+  }
+
+  // Filled area path
+  function areaPath() {
+    const base = toY(0)
+    return `${linePath()} L ${pts[pts.length - 1].x},${base} L ${pts[0].x},${base} Z`
+  }
+
+  const gridLines = [85, 170, 255, 340].filter(v => v < yMax)
+
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 8px 8px', marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingLeft: 8 }}>
+        SB Progression (µmol/L)
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+        <defs>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="var(--primary)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.02" />
+          </linearGradient>
+          <clipPath id="chartClip">
+            <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
+          </clipPath>
+        </defs>
+
+        {/* Zone bands */}
+        {zones.map((z, i) => {
+          const y1 = toY(Math.min(z.to, yMax))
+          const y2 = toY(z.from)
+          return <rect key={i} x={PAD.left} y={y1} width={chartW} height={Math.max(0, y2 - y1)} fill={z.color} />
+        })}
+
+        {/* Horizontal grid lines */}
+        {gridLines.map(v => (
+          <g key={v}>
+            <line x1={PAD.left} y1={toY(v)} x2={PAD.left + chartW} y2={toY(v)}
+              stroke="rgba(128,128,128,0.2)" strokeWidth="1" strokeDasharray="4,3" />
+            <text x={PAD.left - 5} y={toY(v) + 4} textAnchor="end" fontSize="8" fill="var(--text-light)" fontFamily="monospace">{v}</text>
+          </g>
+        ))}
+
+        {/* Y axis 0 label */}
+        <text x={PAD.left - 5} y={toY(0) + 4} textAnchor="end" fontSize="8" fill="var(--text-light)" fontFamily="monospace">0</text>
+
+        {/* Area fill */}
+        <path d={areaPath()} fill="url(#lineGrad)" clipPath="url(#chartClip)" />
+
+        {/* Line */}
+        <path d={linePath()} fill="none" stroke="var(--primary)" strokeWidth="2.5"
+          strokeLinejoin="round" strokeLinecap="round" clipPath="url(#chartClip)" />
+
+        {/* Data points */}
+        {pts.map((p, i) => {
+          const risk = getRisk(p.r.level)
+          const isLast = i === pts.length - 1
+          return (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r={isLast ? 6 : 4.5}
+                fill={risk?.color || 'var(--primary)'}
+                stroke="var(--card)" strokeWidth="2" />
+              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="9"
+                fill={risk?.color || 'var(--text-mid)'} fontFamily="monospace" fontWeight="700">
+                {p.r.level}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* X axis date labels */}
+        {pts.map((p, i) => (
+          <text key={i} x={p.x} y={H - 4} textAnchor="middle" fontSize="8"
+            fill="var(--text-light)" fontFamily="sans-serif">
+            {p.r.date.slice(5)}
+          </text>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
 // ── Levels Tab ────────────────────────────────────────────────
 function LevelsTab({ userId }) {
   const [readings, setReadings] = useState([])
@@ -243,6 +364,9 @@ function LevelsTab({ userId }) {
           )}
         </div>
       )}
+
+      {/* Progression chart */}
+      <ProgressChart readings={readings} />
 
       {/* Risk guide */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
