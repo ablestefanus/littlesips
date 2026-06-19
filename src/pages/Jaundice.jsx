@@ -17,21 +17,21 @@ const METHODS = ['Blood test', 'Transcutaneous meter', 'Visual assessment']
 const APPT_TYPES = ['Jaundice checkup', 'Blood test', 'Phototherapy check', 'Follow-up', 'General']
 
 // ── Add Reading Modal ─────────────────────────────────────────
-function AddReadingModal({ onSave, onClose }) {
-  const [level,     setLevel]     = useState('')
-  const [weight,    setWeight]    = useState('')
-  const [method,    setMethod]    = useState(METHODS[0])
-  const [date,      setDate]      = useState(new Date().toISOString().slice(0, 10))
-  const [time,      setTime]      = useState(new Date().toTimeString().slice(0, 5))
-  const [photo,     setPhoto]     = useState(false)
-  const [notes,     setNotes]     = useState('')
-  const [saving,    setSaving]    = useState(false)
+function AddReadingModal({ onSave, onClose, editing }) {
+  const [level,  setLevel]  = useState(editing?.level  ?? '')
+  const [weight, setWeight] = useState(editing?.weight ?? '')
+  const [method, setMethod] = useState(editing?.method || METHODS[0])
+  const [date,   setDate]   = useState(editing?.date   || new Date().toISOString().slice(0, 10))
+  const [time,   setTime]   = useState(editing?.time   || new Date().toTimeString().slice(0, 5))
+  const [photo,  setPhoto]  = useState(editing?.phototherapy || false)
+  const [notes,  setNotes]  = useState(editing?.notes  || '')
+  const [saving, setSaving] = useState(false)
   const risk = getRisk(parseFloat(level))
 
   async function handleSave() {
     if (!level) return
     setSaving(true)
-    await onSave({ level: parseFloat(level), weight: weight ? parseFloat(weight) : null, method, date, time, phototherapy: photo, notes })
+    await onSave({ level: parseFloat(level), weight: weight ? parseFloat(weight) : null, method, date, time, phototherapy: photo, notes }, editing?.id)
     setSaving(false)
     onClose()
   }
@@ -47,7 +47,7 @@ function AddReadingModal({ onSave, onClose }) {
         maxHeight: '85vh', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>Add Bilirubin Reading</h3>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>{editing ? 'Edit Reading' : 'Add Bilirubin Reading'}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text-light)' }}>×</button>
         </div>
 
@@ -100,7 +100,7 @@ function AddReadingModal({ onSave, onClose }) {
         </div>
 
         <button className="btn btn-primary w-full" onClick={handleSave} disabled={!level || saving}>
-          {saving ? 'Saving…' : 'Save reading'}
+          {saving ? 'Saving…' : editing ? 'Update reading' : 'Save reading'}
         </button>
       </div>
     </div>
@@ -185,9 +185,10 @@ function AddAppointmentModal({ onSave, onClose, editing }) {
 
 // ── Levels Tab ────────────────────────────────────────────────
 function LevelsTab({ userId }) {
-  const [readings,    setReadings]    = useState([])
-  const [showAdd,     setShowAdd]     = useState(false)
-  const [loading,     setLoading]     = useState(true)
+  const [readings, setReadings] = useState([])
+  const [showAdd,  setShowAdd]  = useState(false)
+  const [editing,  setEditing]  = useState(null)
+  const [loading,  setLoading]  = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -198,8 +199,12 @@ function LevelsTab({ userId }) {
 
   useEffect(() => { load() }, [load])
 
-  async function handleSave(data) {
-    await pb.collection('jaundice').create({ user: userId, ...data })
+  async function handleSave(data, id) {
+    if (id) {
+      await pb.collection('jaundice').update(id, data)
+    } else {
+      await pb.collection('jaundice').create({ user: userId, ...data })
+    }
     await load()
   }
 
@@ -310,17 +315,19 @@ function LevelsTab({ userId }) {
                   </div>
                   {r.notes && <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 3 }}>{r.notes}</div>}
                 </div>
-                <button onClick={() => handleDelete(r.id)}
-                  style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--text-light)', padding: 4, flexShrink: 0 }}>
-                  🗑
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => { setEditing(r); setShowAdd(true) }}
+                    style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', color: 'var(--text-light)', padding: 4 }}>✏️</button>
+                  <button onClick={() => handleDelete(r.id)}
+                    style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', color: 'var(--text-light)', padding: 4 }}>🗑</button>
+                </div>
               </div>
             )
           })}
         </div>
       )}
 
-      {showAdd && <AddReadingModal onSave={handleSave} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddReadingModal onSave={handleSave} onClose={() => { setShowAdd(false); setEditing(null) }} editing={editing} />}
     </div>
   )
 }
